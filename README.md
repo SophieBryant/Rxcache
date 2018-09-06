@@ -142,7 +142,7 @@ private void initData() {
             .subscribe(new Consumer<Reply<Students>>() {
                 @Override
                 public void accept(Reply<Students> StudentsReply) throws Exception {
-                    Students.HeWeather6Bean bean = newsReply.getData().getHeWeather6().get(0);
+                    Students.HeWeather6Bean bean = StudentsReply.getData().getHeWeather6().get(0);
                     Log.e("TagSuccess", bean.getNow().getCond_txt());
                 }
             }, new Consumer<Throwable>() {
