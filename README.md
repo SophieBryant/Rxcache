@@ -15,11 +15,10 @@
 添加 JitPack 仓库在你的  build.gradle  文件 (项目根目录下):
 
 ```
-allprojects {
-    repositories {
-        jcenter()
-        maven { url "https://jitpack.io" }
-    }
+repositories {
+    google()
+    jcenter()
+    maven { url "https://jitpack.io" }
 }
 
 ```
@@ -28,180 +27,52 @@ allprojects {
 
 ```
 dependencies {
-    compile "com.github.VictorAlbertos.RxCache:core:1.4.6"
-    compile "io.reactivex:rxjava:1.1.5"
+    compile "com.github.VictorAlbertos.RxCache:runtime:1.8.3-2.x"
+    compile "io.reactivex.rxjava2:rxjava:2.1.6"
+
+  compile 'com.squareup.retrofit2:adapter-rxjava2:2.4.0'
+//Caused by: java.lang.IllegalArgumentException: Could not locate call adapter for rx.Observable<>
+
+ compile 'com.squareup.retrofit2:retrofit:2.4.0'
+ compile 'com.squareup.retrofit2:converter-gson:2.4.0'
+
+ compile 'com.github.VictorAlbertos.Jolyglot:gson:0.0.3'
+ compile 'io.reactivex.rxjava2:rxandroid:2.0.0'
 }
 
 ```
 
-###  定义一个接口  CacheProvider
+###   基本的结构
 
+
+Students               :     和Retrofit 中存放的数据类一样  就是一个Bena类
+
+RestApi            :      Retrofit的接口类
+
+CacheProvider :    用来创建一个RxCaChe的接口
+
+Repository       :    Retrofit和RxCaChe的具体结合操作，以及是一个接口类
+
+MainActivity    :    执行网络请求操作
  
 
-```
-public interface CacheProviders {
-    //这里设置缓存失效时间为2分钟。
-    @LifeCache(duration = 2, timeUnit = TimeUnit.MINUTES)
-    Observable<Reply<List<Repo>>> getRepos(Observable<List<Repo>> oRepos, DynamicKey userName, EvictDynamicKey evictDynamicKey);
 
-    @LifeCache(duration = 2, timeUnit = TimeUnit.MINUTES)
-    Observable<Reply<List<User>>> getUsers(Observable<List<User>> oUsers, DynamicKey idLastUserQueried, EvictProvider evictProvider);
+###  1. 使用 GsonFormat 创建一个数据  Bean 类，既 Student  类
 
-    Observable<Reply<User>> getCurrentUser(Observable<User> oUser, EvictProvider evictProvider);
-}
-public interface RestApi {
-    String URL_BASE = "https://api.github.com";
-    String HEADER_API_VERSION = "Accept: application/vnd.github.v3+json";
-
-    @Headers({HEADER_API_VERSION})
-    @GET("/users")
-    Observable<List<User>> getUsers(@Query("since") int lastIdQueried, @Query("per_page") int perPage);
-
-    @Headers({HEADER_API_VERSION})
-    @GET("/users/{username}/repos")
-    Observable<List<Repo>> getRepos(@Path("username") String userName);
-
-    @Headers({HEADER_API_VERSION})
-    @GET("/users/{username}") Observable<Response<User>> getUser(@Path("username") String username);
-}
-
-```
-
-将 RestApi 中需要缓存的接口方法在 CacheProviders 写相应的方法,如：
-```
-Observable<List<Repo>> getRepos(@Path("username") String userName);
-
-```
-
-对应
-
-```
-Observable<Reply<List<Repo>>> getRepos(Observable<List<Repo>> oRepos, DynamicKey userName, EvictDynamicKey evictDynamicKey);
-
-```
-
-###  创建一个RxCache实例并使用它
-
-   最后,使用  RxCache.Builder 实例化提供者 interface，提供一个有效的文件系统路径允许 RxCache 写磁盘上。
+###  2. RestApi 类：   跟普通的Retrofit接口没有什么区别
    
    ```
-    //cacheDir缓存文件路径
- ort rx.Observable;
-import rx.functions.Func1;
-import sample_data.cache.CacheProviders;
-import sample_data.entities.Repo;
-import sample_data.entities.User;
-import sample_data.net.RestApi;
+  public interface RestApi {
 
-public class Repository {
-    public static final int USERS_PER_PAGE = 25;
 
-    public static Repository init(File cacheDir) {
-        return new Repository(cacheDir);
-    }
+    @POST("s6/weather/now?parameters")
+    Observable<News> getUsers(@Query("key")String key, @Query("location")String location);
 
-    private final CacheProviders cacheProviders;
-    private final RestApi restApi;
-
-    public Repository(File cacheDir) {
-        //persistence设置为缓存文件路径cacheDir,using设置成你所定义的接口类class
-        cacheProviders = new RxCache.Builder()
-                .persistence(cacheDir)
-                .using(CacheProviders.class);
-
-        restApi = new Retrofit.Builder()
-                .baseUrl(RestApi.URL_BASE)
-                .addCallAdapterFactory(RxJavaCallAdapterFactory.create())
-                .addConverterFactory(GsonConverterFactory.create())
-                .build().create(RestApi.class);
-    }
-    /**
-     *
-     * @param update 是否更新,如果设置为 true，缓存数据将被清理，并且向服务器请求数据
-     * @return
-     */
-    public Observable<Reply<List<User>>> getUsers(int idLastUserQueried, final boolean update) {
-        //这里设置idLastUserQueried为DynamicKey,
-        return cacheProviders.getUsers(restApi.getUsers(idLastUserQueried, USERS_PER_PAGE), new DynamicKey(idLastUserQueried), new EvictDynamicKey(update));
-    }
-
-    //对应每个不同的userName，配置缓存
-    public Observable<Reply<List<Repo>>> getRepos(final String userName, final boolean update) {
-        //以userName为DynamicKey,如果update为true,将会重新获取数据并清理缓存。
-        return cacheProviders.getRepos(restApi.getRepos(userName), new DynamicKey(userName), new EvictDynamicKey(update));
-    }
-
-    public Observable<Reply<User>> loginUser(final String userName) {
-        return restApi.getUser(userName).map(new Func1<Response<User>, Observable<Reply<User>>>() {
-            @Override public Observable<Reply<User>> call(Response<User> userResponse) {
-
-                if (!userResponse.isSuccess()) {
-                    try {
-                        ResponseError responseError = new Gson().fromJson(userResponse.errorBody().string(), ResponseError.class);
-                        throw new RuntimeException(responseError.getMessage());
-                    } catch (JsonParseException | IOException exception) {
-                        throw new RuntimeException(exception.getMessage());
-                    }
-                }
-                //用户登陆，这里设置 new EvictProvider(true),表示登陆不缓存，为实时登陆
-                return cacheProviders.getCurrentUser(Observable.just(userResponse.body()), new EvictProvider(true));
-            }
-        }).flatMap(new Func1<Observable<Reply<User>>, Observable<Reply<User>>>() {
-            @Override public Observable<Reply<User>> call(Observable<Reply<User>> replyObservable) {
-                return replyObservable;
-            }
-        }).map(new Func1<Reply<User>, Reply<User>>() {
-            @Override public Reply<User> call(Reply<User> userReply) {
-                return userReply;
-            }
-        });
-    }
-
-    public Observable<String> logoutUser() {
-        return cacheProviders.getCurrentUser(Observable.<User>just(null), new EvictProvider(true))
-                .map(new Func1<Reply<User>, String>() {
-                    @Override
-                    public String call(Reply<User> user) {
-                        return "Logout";
-                    }
-                })
-                .onErrorReturn(new Func1<Throwable, String>() {
-                    @Override
-                    public String call(Throwable throwable) {
-                        return "Logout";
-                    }
-                });
-    }
-
-    public Observable<Reply<User>> getLoggedUser(boolean invalidate) {
-        Observable<Reply<User>> cachedUser = cacheProviders.getCurrentUser(Observable.<User>just(null), new EvictProvider(false));
-
-        Observable<Reply<User>> freshUser = cachedUser.flatMap(new Func1<Reply<User>, Observable<Reply<User>>>() {
-            @Override public Observable<Reply<User>> call(Reply<User> userReply) {
-                return loginUser(userReply.getData().getLogin());
-            }
-        });
-
-        if (invalidate) return freshUser;
-        else return cachedUser;
-    }
-
-    private static class ResponseError {
-        private final String message;
-
-        public ResponseError(String message) {
-            this.message = message;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-    }
-}         
+}      
 
 ```
 
-###  DynamicKeyGroup 的使用
+### 3  CacheProvider类
 
 ```
 interface Providers {        
@@ -209,31 +80,78 @@ interface Providers {
 }
 
 ```
+请注意：
+
+ 1： @LifeCache设置缓存过期时间. 如果没有设置@LifeCache, 数据将被永久缓存除非你使用了其他的清除缓存的标注，这个一会我们再说。
+
+2： 此接口写的里面的第一个参数要写成你Retrofit接口中开头的一段，可以从上边的代码和下边的代码仔细看一下
+
+当然，这里我们只设置了一个参数，也就是必需的参数，如果只设置这个所必需的参数和没有设置@LifeCache那么只要本地缓存没有消失，就会每次都进行本地读取数 据。其他参数是一些 清除缓存的标注，我们先进行一次简单的数据请求与缓存，再写关于其他标注的事情。 
+
+### 4：Repository 类
 ```
-public class Repository {
-    private final Providers providers;
-
-    public Repository(File cacheDir) {
-        providers = new RxCache.Builder()
-                .persistence(cacheDir)
-                .using(Providers.class);
-    }
-
-    public Observable<List<Mock>> getMocksWithFiltersPaginate(final String filter, final int page, final boolean updateFilter) {
-        return providers.getMocksPaginateWithFiltersEvictingPerFilter(getExpensiveMocks(), new DynamicKeyGroup(filter, page), new EvictDynamicKey(updateFilter));
-    }
-
-    //在实际的使用情况下，这里是当你建立你观察到的与昂贵的操作。
-    //如果你正在使用HTTP调用可以改造出来的盒子。
-    private Observable<List<Mock>> getExpensiveMocks() {
-        return Observable.just(Arrays.asList(new Mock("")));
-    }
+//调用此处，用来生成一个缓存文件
+public static Repository init(File cacheDir) {
+    return new Repository(cacheDir);
 }
 
-```
-### 混淆配置
+private final CacheProvider cacheProvider;
+private final RestApi restApi;
+
+public Repository(File cacheDir) {
+
+    cacheProvider = new RxCache.Builder()
+            .persistence(cacheDir, new GsonSpeaker())
+            .using(CacheProvider.class);
+
+
+    restApi = new Retrofit.Builder()
+            .baseUrl("https://free-api.heweather.com/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+            .build()
+            .create(RestApi.class);
+
+}
+
+
+//真正进行数据请求和缓存的接口
+public Observable<Reply<News>> getRepos(String key, String location) {
+    return cacheProvider.getRepos(restApi.getUsers(key, location));
+}
+
 
 ```
--dontwarn io.rx_cache.internal.**
+###  5:MainActivity  进行网络请求和缓存操作
+
+```
+private Repository repository;
+
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main);
+    repository = Repository.init(getFilesDir());
+    initData();
+}
+
+private void initData() {
+
+    repository.getRepos("fad6d6b2cda14ef69d260ea9a4415e31", "北京")
+            .subscribeOn(Schedulers.newThread())
+            .subscribe(new Consumer<Reply<News>>() {
+                @Override
+                public void accept(Reply<News> newsReply) throws Exception {
+                    News.HeWeather6Bean bean = newsReply.getData().getHeWeather6().get(0);
+                    Log.e("TagSuccess", bean.getNow().getCond_txt());
+                }
+            }, new Consumer<Throwable>() {
+                @Override
+                public void accept(Throwable throwable) throws Exception {
+                    Log.e("TagErr", throwable.getMessage());
+                }
+            });
+
+}
 
 ```
