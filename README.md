@@ -116,7 +116,7 @@ public Repository(File cacheDir) {
 
 
 //真正进行数据请求和缓存的接口
-public Observable<Reply<News>> getRepos(String key, String location) {
+public Observable<Reply<Students>> getRepos(String key, String location) {
     return cacheProvider.getRepos(restApi.getUsers(key, location));
 }
 
@@ -141,8 +141,8 @@ private void initData() {
             .subscribeOn(Schedulers.newThread())
             .subscribe(new Consumer<Reply<Students>>() {
                 @Override
-                public void accept(Reply<Students> newsReply) throws Exception {
-                    News.HeWeather6Bean bean = newsReply.getData().getHeWeather6().get(0);
+                public void accept(Reply<Students> StudentsReply) throws Exception {
+                    Students.HeWeather6Bean bean = newsReply.getData().getHeWeather6().get(0);
                     Log.e("TagSuccess", bean.getNow().getCond_txt());
                 }
             }, new Consumer<Throwable>() {
