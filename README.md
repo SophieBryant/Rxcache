@@ -45,15 +45,15 @@ dependencies {
 ###   基本的结构
 
 
-Students               :     和Retrofit 中存放的数据类一样  就是一个Bena类
+Students :     和Retrofit 中存放的数据类一样  就是一个Bena类
 
-RestApi            :      Retrofit的接口类
+RestApi  :    Retrofit的接口类
 
 CacheProvider :    用来创建一个RxCaChe的接口
 
-Repository       :    Retrofit和RxCaChe的具体结合操作，以及是一个接口类
+Repository    :    Retrofit和RxCaChe的具体结合操作，以及是一个接口类
 
-MainActivity    :    执行网络请求操作
+MainActivity  :    执行网络请求操作
  
 
 
@@ -66,7 +66,7 @@ MainActivity    :    执行网络请求操作
 
 
     @POST("s6/weather/now?parameters")
-    Observable<News> getUsers(@Query("key")String key, @Query("location")String location);
+    Observable<Students> getUsers(@Query("key")String key, @Query("location")String location);
 
 }      
 
@@ -137,11 +137,11 @@ protected void onCreate(Bundle savedInstanceState) {
 
 private void initData() {
 
-    repository.getRepos("fad6d6b2cda14ef69d260ea9a4415e31", "北京")
+    repository.getRepos("fad6d6b2cda14ef69d260ea9a4415e31", "深圳")
             .subscribeOn(Schedulers.newThread())
-            .subscribe(new Consumer<Reply<News>>() {
+            .subscribe(new Consumer<Reply<Students>>() {
                 @Override
-                public void accept(Reply<News> newsReply) throws Exception {
+                public void accept(Reply<Students> newsReply) throws Exception {
                     News.HeWeather6Bean bean = newsReply.getData().getHeWeather6().get(0);
                     Log.e("TagSuccess", bean.getNow().getCond_txt());
                 }
